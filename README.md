@@ -17,7 +17,7 @@ npm run --silent -- cypher --help
 npm run --silent --silent -- cypher --dbName neo4j --dbUrl "neo4j://localhost:7687" "match (n) return count(n) as numNodes;"
 ```
 
-The list of PredefinedDbFunctions can be extended in external modules - see [db-funcs.ts](./db-funcs.ts) and run `npm run db-funcs`
+The list of PredefinedDbFunctions can be extended in external modules - see [db-funcs.ts](./src/db-funcs.ts) and run `npm run db-funcs`
  
 Neo4j DB driver docs are at https://neo4j.com/docs/api/javascript-driver/current/
 
