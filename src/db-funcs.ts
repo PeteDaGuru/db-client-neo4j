@@ -1,4 +1,5 @@
-import { cleanupDbSummary, dbLogFn, executeCypher, executeCypherRawResults, main, objectFromDbResultRecord, PredefinedDbFunctions } from './db-client'
+import { DateTime, Time } from 'neo4j-driver'
+import { cleanupDbSummary, dbClose, dbCloseSession, dbLogFn, executeCypher, executeCypherRawResults, main, newReadonlyDbContext, newWritableDbContext, objectFromDbResultRecord, PredefinedDbFunctions } from './db-client'
 import { writeFile } from 'node:fs/promises'
 
 /** Samples of adding DB functions to db-client and using it as an enhanced CLI
@@ -7,6 +8,26 @@ import { writeFile } from 'node:fs/promises'
 */
 function addMoreDbFunctions() {
   const p = PredefinedDbFunctions
+
+  /** This is just a sample of isolating reads and writes and creating new sessions to the same DB
+   * Note that sessions can be made to other DBs as well if desired.
+   *  npm run --silent -- db-funcs sample1
+   *  
+   */
+  p.sample1 = async function sample1(db, parms) {
+    const readDb = newReadonlyDbContext(db)
+    const results = await executeCypher(readDb, `return {name: $name, value:$value} as obj`, {name:'sample1', value: new Date().toISOString()})
+    const writeDb = newWritableDbContext(readDb)  // Talk to leader and allow writes in a separate session
+    let obj = {} as any
+    for (const res of results) {
+      obj = res.obj
+      await executeCypher(writeDb, `merge (n:Value{name:$nameParm}) set n.value=$valParm return $valParm as value`, {nameParm: obj.name, valParm: obj.value})
+    }
+    await dbCloseSession(writeDb)
+    await dbCloseSession(readDb)
+    // Note that we don't await dbClose(db) the entire DB here since this function may be invoked alongside others - main() does the final db close   
+    return obj
+  }
 
   /** exportValuesToCsv predefined function - export name,value fields from Values nodes
    * 
@@ -33,7 +54,7 @@ function addMoreDbFunctions() {
   * Example invocation: 
   *   npm run --silent -- db-funcs exportValuesToCsv label=Value limit=200 serverfile=values.csv
   */
-  p.exportValuesToCsv = async (db, parms) => {
+  p.exportValuesToCsv = async function exportValuesToCsv(db, parms) {
     // Note that we use some javacript template values via ${xxx} substitution, and internal cypher parameter ones via $xxx
     const label = parms.label ?? 'Value'
     const localfile = parms.file
