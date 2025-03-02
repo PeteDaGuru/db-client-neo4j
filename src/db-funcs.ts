@@ -29,6 +29,16 @@ function addMoreDbFunctions() {
     return obj
   }
 
+  /** Test of nesting functions and handling parameters */
+  p.testNestedParms = async function testNestedParms(db, parms) {
+    const echoResult = await executeCypher(db, PredefinedDbFunctions.echo, parms)
+    const countResult = await executeCypher(db, PredefinedDbFunctions.nodeCount)
+    const r2 = await executeCypher(db, async (db, p1) => {
+      return await executeCypher(db, PredefinedDbFunctions.echo, { p1: p1 })
+    }, { parms: echoResult[0].parms, nodeCount: countResult[0].nodeCount })
+    return r2
+  },
+
   /** exportValuesToCsv predefined function - export name,value fields from Values nodes
    * 
    * Note that without specifying a file, it streams everything in memory to the 'data' field.

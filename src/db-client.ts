@@ -153,7 +153,7 @@ export function newWritableDbContext(db:DbContextOrParmsType, overrides?:DbConte
 export function dbHandleLastBookmarks(db:DbContextType) {
   const marks = db.dbSession?.lastBookmarks()
   db.dbMarks = marks
-  db.dbSessionParms.bookmarks = marks
+  db.dbSessionParms.bookmarks = db.dbParms.ignoremarks ? null : marks
   // Note that if dbDriver.executeQuery is done, should share it's bookmarkmanager: https://neo4j.com/docs/javascript-manual/current/bookmarks/#_mix_executequery_and_sessions
   return db
 }
@@ -282,14 +282,6 @@ export const PredefinedDbFunctions: { [functionName: string]: DbFunction } = {
   setValue: async (db, parms) => { return await executeCypher(db, `merge (n:Value{name:$key}) set n.value=$value return n.value as value`, parms) },
   getAllValues: async (db) => { return await executeCypher(db, `match (n:Value) with properties(n) as props return apoc.map.fromPairs(collect([props.name,props.value])) as dict`) },
   getValue: async (db, parms) => { return await executeCypher(db, `match (n:Value) where n.name=$key return n.value as value`, parms) },
-  testNestedParms: async (db, parms) => {
-    const echoResult = await executeCypher(db, PredefinedDbFunctions.echo, parms)
-    const countResult = await executeCypher(db, PredefinedDbFunctions.nodeCount)
-    const r2 = await executeCypher(db, async (db, p1) => {
-      return await executeCypher(db, PredefinedDbFunctions.echo, { p1: p1 })
-    }, { parms: echoResult[0].parms, nodeCount: countResult[0].nodeCount })
-    return r2
-  },
 }
 
 /** Handle simple args from CLI as name=value */
