@@ -1,6 +1,6 @@
 #!/bin/env node
-import neo4j, { Session, Config, SessionConfig, ManagedTransaction } from "neo4j-driver"
-import { Driver, QueryResult, RecordShape, TransactionConfig } from "neo4j-driver-core"
+import neo4j, { Session, Config, SessionConfig, ManagedTransaction, session } from "neo4j-driver"
+import { Driver, QueryResult, RecordShape, ResultSummary, TransactionConfig } from "neo4j-driver-core"
 import { parseArgs, inspect } from 'node:util'
 
 /** DB Client for Neo4j DB - implemented as functions (not classes) 
@@ -45,6 +45,7 @@ export function timestampedLog(msg: string, ...rest) {
   console.error(new Date().toISOString(), dbLog)
 }
 
+/** Note that this aligns with Neo4j Query type used by run() methods */
 export type DbQueryWithParametersType = {
   text: string,
   parameters?: { [parm: string]: any },
@@ -131,7 +132,7 @@ export function newDbContext(dbContext: DbContextOrParmsType, overrides?: DbCont
 }
 
 /** Ensure session default access mode respects our dbParms settings */
-export function setDbSessionParmsDefaultAccessMode(db:DbContextType) {
+export function setDbSessionParmsDefaultAccessMode(db: DbContextType) {
   if (db.dbParms.allowwrite) {
     db.dbSessionParms.defaultAccessMode = 'WRITE'
   } else if (db.dbParms.readonly) {
@@ -140,17 +141,17 @@ export function setDbSessionParmsDefaultAccessMode(db:DbContextType) {
 }
 
 /** Answer a new read-only db context */
-export function newReadonlyDbContext(db:DbContextOrParmsType, overrides?:DbContextOrParmsType):DbContextType {
-  return newDbContext(db, {...overrides, ...{allowwrite: false }})
+export function newReadonlyDbContext(db: DbContextOrParmsType, overrides?: DbContextOrParmsType): DbContextType {
+  return newDbContext(db, { ...overrides, ...{ allowwrite: false } })
 }
 
 /** Answer a new writable db context */
-export function newWritableDbContext(db:DbContextOrParmsType, overrides?:DbContextOrParmsType):DbContextType {
-  return newDbContext(db, {...overrides, ...{allowwrite: true }})
+export function newWritableDbContext(db: DbContextOrParmsType, overrides?: DbContextOrParmsType): DbContextType {
+  return newDbContext(db, { ...overrides, ...{ allowwrite: true } })
 }
 
 /** Handle causal cluster bookmarks so multiple sessions can remain in synch - at end of transaction or when closing a session */
-export function dbHandleLastBookmarks(db:DbContextType) {
+export function dbHandleLastBookmarks(db: DbContextType) {
   const marks = db.dbSession?.lastBookmarks()
   db.dbMarks = marks
   db.dbSessionParms.bookmarks = db.dbParms.ignoremarks ? null : marks
@@ -159,7 +160,7 @@ export function dbHandleLastBookmarks(db:DbContextType) {
 }
 
 /** Forget causal cluster bookmarks we may have saved up */
-export function dbForgetBookmarks(db:DbContextType) {
+export function dbForgetBookmarks(db: DbContextType) {
   db.dbMarks = null
   db.dbSessionParms.bookmarks = null
   return db
@@ -178,7 +179,7 @@ export function cleanupDbSummary(dbSummary) {
 }
 
 export function objectFromDbResultRecord<T = any>(rec, onlyFields?: PropertyKey[]): T {
-  return onlyFields == null ? rec.toObject() : Object.fromEntries(onlyFields.map(e => [e, rec.get(e)]))
+  return onlyFields == null ? rec.toObject() : Object.fromEntries(onlyFields.map(e => [e, rec.get(e)])) as T
 }
 
 export async function dbResultsAsObjects<T>(db: DbContextType, dbResults: DbResultRaw, onlyFields?: string[]): Promise<T[]> {
@@ -204,7 +205,7 @@ export async function executeCypher<T = any>(db: DbContextType, dbQuery: string 
   return results
 }
 
-/** Execute a Cypher query or function as a read/write transaction without converting results */
+/** Execute a Cypher query or function as a read/write transaction without converting results to objects */
 export async function executeCypherRawResults<T = any>(db: DbContextType, dbQuery: string | DbFunction | DbQueryWithParametersType, parameters?: { [key: string]: any }): Promise<DbResultRaw> {
   const isQueryFunction = typeof dbQuery === 'function'
   let dbQueryWithParms = dbQuery as DbQueryWithParametersType
@@ -213,7 +214,7 @@ export async function executeCypherRawResults<T = any>(db: DbContextType, dbQuer
   } else if (parameters != null && !isQueryFunction) {
     dbQueryWithParms.parameters = { ...dbQueryWithParms.parameters, ...parameters }
   }
-  dbLogFn?.('executeCypher', dbQuery, parameters)
+  dbLogFn?.('executeCypher', dbQueryWithParms ?? dbQuery, parameters ?? '')
   if (db.dbSession == null) {
     db.dbSession = db.dbDriver.session(db.dbSessionParms)
     if (!isQueryFunction) {  // Perform using single-transaction session.run call
@@ -221,6 +222,7 @@ export async function executeCypherRawResults<T = any>(db: DbContextType, dbQuer
       dbHandleLastBookmarks(db)
       return dbResult
     }
+    // else fall through since isQueryFunction is true
   }
   const dbQueryFn = isQueryFunction ? dbQuery : async (db: DbContextType) => {
     // causal consistency bookmarks are maintained within a transaction
@@ -247,6 +249,56 @@ export async function executeCypherRawResults<T = any>(db: DbContextType, dbQuer
     return dbResult
   }
   return await dbQueryFn(db, parameters)  // Execute within existing transaction
+}
+
+export type DbObserver = { onNext: (obj) => void, onCompleted?: (summary) => void, onError?: (error) => void, onKeys?: (keys: string[]) => void }
+/** Execute Cypher statement to allow streaming results back - can handle large amounts data
+ *  https://neo4j.com/docs/api/javascript-driver/current/#consuming-records-with-streaming-api
+ *  Note that if you are already in a transaction, you should create a fresh session for the stream (and close it when done)
+  const streamDb = newDbContext(db)
+  await streamDb.executeAndStreamCypherResults(`match (n:Value) return n.name as name, n.value as value`)
+   .subscribe({
+    onNext: record => {
+      console.log(record.get('name'))
+    }
+  })
+*/
+export async function executeAndStreamCypherResults<T = any>(db: DbContextType, dbQueryWithParms: DbQueryWithParametersType, observer: DbObserver) {
+  // If already in a transaction, need to get fresh session to stream
+  const ourDb = db.dbTxn ? newDbContext(db) : db
+  dbLogFn?.('executeAndStreamCypherResults', dbQueryWithParms)
+  if (ourDb.dbSession == null) {
+    ourDb.dbSession = db.dbDriver.session(db.dbSessionParms)
+  }
+  return new Promise<T>((resolve, reject) => {
+    ourDb.dbSession.run(dbQueryWithParms).subscribe({
+      onKeys: (keys: string[]) => {
+        observer.onKeys?.(keys)
+      },
+      onNext: record => {
+        observer.onNext(record?.toObject())
+      },
+      onCompleted: (summary: ResultSummary) => {
+        dbHandleLastBookmarks(ourDb)
+        const dbSummary = cleanupDbSummary(summary)
+        ourDb.dbSummary = dbSummary
+        if (ourDb !== db) {
+          db.dbMarks = ourDb.dbMarks
+          db.dbSummary = ourDb.dbSummary
+          ourDb.dbSession.close()
+        }
+        const retVal = observer.onCompleted?.(dbSummary)
+        resolve(dbSummary)
+      },
+      onError: error => {
+        if (ourDb !== db) {
+          ourDb.dbSession.close()
+        }
+        observer.onError?.(error)
+        reject(error)
+      }
+    })
+  })
 }
 
 /** Allow bigint to convert to JSON numeric and uint64 precisely (use string value if out of range)
@@ -294,7 +346,7 @@ export function isValueTrue(valOrStr) {
 }
 
 /** Answer parms from CLI or enviroment using node parseArgs */
-export function getDbParmsFrom(args:string[], env?:{[key:string]: string}):DbParmsType {
+export function getDbParmsFrom(args: string[], env?: { [key: string]: string }): DbParmsType {
   if (env == null) {
     env = process?.env ?? {}
   }
@@ -388,7 +440,7 @@ Optional settings - some may be set by environment variables too:
 }
 
 /** Answer parms from CLI or enviroment using node parseArgs */
-export function handleCliArgs(args, env?:{[key:string]: string}) {
+export function handleCliArgs(args, env?: { [key: string]: string }) {
   const dbParms = getDbParmsFrom(args, env ?? process?.env)
   if (dbParms.help || dbParms.positionals.length === 0) {
     help()
