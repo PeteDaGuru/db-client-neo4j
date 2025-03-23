@@ -10,7 +10,10 @@
     "build-web": "esbuild src/db-client.ts --bundle --outfile=dist/db-client-web.js --platform=node --format=iife",
     "start": "node dist/db-client.js",
     "start-web": "http-server --cors -o db-client-neo4j-web.html",
-    "test": "node dist/db-client.js -- ok"
+    "pretest": "$npm_execpath run build",
+    "test": "node dist/db-client.js -- ok",
+    "pretest:write": "$npm_execpath run build",
+    "test:write": "node dist/db-funcs.js -- runTestFuncs ok=1 echo=1 nodeCount=1 initValueConstraint=1 setValue=1 getValue=1 getAllValues=1 sample1=1 testNestedParms=1 testImplictInTransactions=1"
   },
   "keywords": [
     "neo4j",

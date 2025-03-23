@@ -8,7 +8,34 @@ import { open, writeFile } from 'node:fs/promises'
 function addMoreDbFunctions() {
   const p = PredefinedDbFunctions
 
-  /** This is just a sample of isolating reads and writes and creating new sessions to the same DB
+  /** Use to run the specified functions as a series of tests - used by npm run-script test:write */
+  p.runTestFuncs = async function runTestFuncs(db, parms) {
+    let testCount=0
+    for (const [testName, val] of Object.entries(parms ?? {})) {
+      const test = PredefinedDbFunctions[testName]
+      if (val === '0') {
+        console.log(`ignoring ${testName}`)
+      } else if (test == null) {
+        throw new Error(`Cannot find test ${testName}`)
+      } else {
+        testCount++
+        let result = []
+        const dbWrite = newWritableDbContext(db)
+        try {
+        // Parameters are only for setValue
+         result = await executeCypher(dbWrite, test, {key:'testKey', value:'testValue'})
+        } catch (ex) {
+          console.log(`${testCount} ${testName} testResult`, ex.message)
+          throw ex
+        } finally {
+          console.log(`${testCount} ${testName}`, result)
+        }
+      }
+    }
+    return `ran ${testCount} tests`
+  }
+
+  /** sample1 test of isolating reads and writes and creating new sessions to the same DB
    * Note that sessions can be made to other DBs as well if desired.
    *  npm run --silent -- db-funcs sample1
    *  
@@ -65,7 +92,7 @@ function addMoreDbFunctions() {
     return r4
   }
 
-  /** exportValuesToCsv predefined function - export name,value fields from Values nodes
+  /** exportToCsv using executeAndStreamCypherResults to handle results in batches
    *  Uses APOC function export-cypher-query-csv https://neo4j.com/docs/apoc/current/export/csv/#export-cypher-query-csv
    *  https://github.com/neo4j/apoc  
    * 

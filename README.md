@@ -108,6 +108,8 @@ npm run --silent -- cypher "match (n:Value) with properties(n) as props return a
 ```
 Note that spaces in parameters need to be handled by quoting the entire key=value pair `value=value for key`"
 
+## Handling large results
+Use `executeAndStreamCypherResults` to handle streaming back results rather than holding them in all in memory at once.   An example use is in the `exportToCsv` DB function in `db-funcs.ts`
 
 ## Writing new DB functions
 See the `PredefinedDbFunctions` table in [db-client.ts](./src/db-client.ts) for examples of how to use the API functions, and the `main()` function to see how `executeCypher()` is used to invoke a Cypher query by string or javascript function given a specific DB context setup via the `newDbContext()` function.   The `dbResultAsObjects()` function create javascript objects out of the raw result set.
@@ -116,8 +118,13 @@ An example of how to include `db-client` as a module and enhance the available d
 
 Note that various advanced parameters for sessions and transactions may be set.  The IDE / VSCode typescript plugin should be helpful and guide we to appropriate code comments, and the online docs for the Neo4j javascript driver are at https://neo4j.com/docs/api/javascript-driver/current/.
 
+## Tests
+Tests require a Neo4j DB - an Aura cloud instance or local one can be used. 
+* `yarn test` runs just a simple 'ok' test that touches the primary path through the code.
+* `yarn test:write` runs more tests that write to the DB (but should be fairly safe)
+
 ## Potential Enhancements
-* use the Neo4j DbResult in a streaming mode to allow larger-than-memory results (can be redirected to a file) `dbResultAsStream()`
+* use the Neo4j DbResult in a streaming mode to allow larger-than-memory results
 * Handle invocations from a browser web client
 * Use browser typescript support via Module Shims 2.0 - support typescript type erasure https://github.com/guybedford/es-module-shims (Guy Bedford 2025-02-27): https://guybedford.com/es-module-shims-2.0
 

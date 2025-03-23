@@ -256,10 +256,10 @@ export type DbObserver = { onNext: (obj) => void, onCompleted?: (summary) => voi
  *  https://neo4j.com/docs/api/javascript-driver/current/#consuming-records-with-streaming-api
  *  Note that if you are already in a transaction, you should create a fresh session for the stream (and close it when done)
   const streamDb = newDbContext(db)
-  await streamDb.executeAndStreamCypherResults(`match (n:Value) return n.name as name, n.value as value`)
+  await streamDb.executeAndStreamCypherResults(`match (n:Value) return properties(n) as props`)
    .subscribe({
-    onNext: record => {
-      console.log(record.get('name'))
+    onNext: obj => {
+      console.log(obj)
     }
   })
 */
