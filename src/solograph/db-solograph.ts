@@ -1,4 +1,4 @@
-import { DbContextType, executeCypher, main, PredefinedDbFunctions } from '../db-client'
+import { DbContextType, executeCypher, main, PredefinedDbFunctions, replaceHelpCommandNameWith } from '../db-client'
 import { Graph } from './graph'
 
 /** Functions to handle Solo graphs from https://github.com/WardCunningham/graph
@@ -200,11 +200,11 @@ export function addMoreDbFunctions() {
     return graph
   }
 
-    /** Test production of empty SoloGraph from result that are not nodes and relationships  */
-    p.testSoloGraph1 = async function testSoloGraph1(db, parms) {
-      const graph = await createSoloGraphFromCypherQuery(db, `MATCH (n)-[]->(p) limit 5 return properties(n) as n, properties(p) as p`, parms)
-      return graph
-    }
+  /** Test production of empty SoloGraph from result that are not nodes and relationships  */
+  p.testSoloGraph1 = async function testSoloGraph1(db, parms) {
+    const graph = await createSoloGraphFromCypherQuery(db, `MATCH (n)-[]->(p) limit 5 return properties(n) as n, properties(p) as p`, parms)
+    return graph
+  }
 
   /** Test production of SoloGraph objects from unstructured result 2 - Neo4j Path */
   p.testSoloGraph2 = async function testSoloGraph2(db, parms) {
@@ -222,6 +222,7 @@ export function addMoreDbFunctions() {
 
 async function index(parms?) {
   addMoreDbFunctions()
+  replaceHelpCommandNameWith('db-solo')
   return await main(parms ?? process.argv.slice(2)) // get only user-provided arguments
 }
 
