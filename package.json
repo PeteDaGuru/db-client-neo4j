@@ -6,6 +6,7 @@
   "scripts": {
     "cypher": "node -r ts-node/register/transpile-only src/db-client.ts",
     "db-funcs": "node -r ts-node/register/transpile-only src/db-funcs.ts",
+    "db-solo": "node -r ts-node/register/transpile-only src/solograph/db-solograph.ts",
     "build": "tsc",
     "build-web": "esbuild src/db-client.ts --bundle --outfile=dist/db-client-web.js --platform=node --format=iife",
     "start": "node dist/db-client.js",
