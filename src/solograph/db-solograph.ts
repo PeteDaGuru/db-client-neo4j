@@ -181,7 +181,6 @@ export async function createSoloGraphFromCypherQuery(db: DbContextType, cypherQu
   for (const row of results) {
     addAllNodesAndEdgesFrom(row)
   }
-console.log({nodes:nodes, edges: edges})
   return createSoloGraphFromNeo4jNodesAndEdges(nodes, edges)
 }
 
