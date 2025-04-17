@@ -415,8 +415,8 @@ export function getDbParmsFrom(args: string[], env?: { [key: string]: string }):
   return { ...values, positionals: positionals }  // Flatten parseArgs result
 }
 
-export function help() {
-  console.log(`yarn db-client [settings] "cypher query" [key1=val1] [key2=val2]
+export let helpText = {
+  fullText: `yarn db-client [settings] "cypher query" [key1=val1] [key2=val2]
 Execute a Neo4j cypher DB query or predefined functions, optionally passing in string key=value parameters 
 that can be accessed in the query via neo4j $key references.
 
@@ -434,10 +434,18 @@ Optional settings - some may be set by environment variables too:
  --logresults      : log query and results to stderr (independent of --log)
  --quiet      | -q : Do not display result to stdout console.log (does not affect --log* output)
  --help  | ?  | -h : Display this help
-
- PredefinedDbFunctions: ${Object.keys(PredefinedDbFunctions).join(' ')}
-`)
+`
 }
+
+export function replaceHelpCommandNameWith(str) {
+  helpText.fullText = helpText.fullText.replace('db-client', str)
+}
+
+export function help() {
+  console.log(helpText.fullText)
+  console.log(`PredefinedDbFunctions: ${Object.keys(PredefinedDbFunctions).join(' ')}`)
+}
+
 
 /** Answer parms from CLI or enviroment using node parseArgs */
 export function handleCliArgs(args, env?: { [key: string]: string }) {

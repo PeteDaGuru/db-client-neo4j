@@ -1,4 +1,4 @@
-import { cleanupDbSummary, dbCloseSession, dbLogFn, executeAndStreamCypherResults, executeCypher, executeCypherRawResults, main, newDbContext, newReadonlyDbContext, newWritableDbContext, objectFromDbResultRecord, PredefinedDbFunctions } from './db-client'
+import { dbCloseSession, dbLogFn, executeAndStreamCypherResults, executeCypher, main, newDbContext, newReadonlyDbContext, newWritableDbContext, objectFromDbResultRecord, PredefinedDbFunctions, replaceHelpCommandNameWith } from './db-client'
 import { open, writeFile } from 'node:fs/promises'
 
 /** Samples of adding DB functions to db-client and using it as an enhanced CLI
@@ -222,6 +222,7 @@ $serverfile,
 
 async function index(parms?) {
   addMoreDbFunctions()
+  replaceHelpCommandNameWith('db-funcs')
   return await main(parms ?? process.argv.slice(2)) // get only user-provided arguments
 }
 
