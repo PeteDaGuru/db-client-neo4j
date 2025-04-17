@@ -5,6 +5,10 @@ import { Graph } from './graph'
  *  With correct packages.json run script entry, can invoke via:
  *   npm run db-solograph -- --help
  *   node -r ts-node/register/transpile-only src/solograph/db-solograph.ts
+ *
+ *  Note: Solo collaborator wants {name: "foo", graph: {nodes:[], rels:[]}} and wants a name property in props of nodes
+ *  solo collaborator also handles things as .jsonl so JSON must be in one line (not prett-printed).  jq -c option
+ *  http://ward.dojo.fed.wiki/view/welcome-visitors/view/solo-graph
 */
 
 export type EdgeResultNeo4j = {
