@@ -479,25 +479,33 @@ export function handleCliArgs(args, env?: { [key: string]: string }) {
   return { dbParms: dbParms, query: query, queryParms: queryParms }
 }
 
+
+
 /** DB Client for Neo4j DB 
+ * If processResultFn is set, run that on the result before returning it.
  * Note that this provides a CLI but is also an example of using the API.
  * Driver docs are at https://neo4j.com/docs/api/javascript-driver/current/
 */
-export async function main(args) {
+export async function main(args, processResultFn?:(any)=>any) {
   const { dbParms, query, queryParms } = handleCliArgs(args)
   if (query == null) {
     return {}
   }
   const db = newDbContext(dbParms)
   let data = {}
+  if (processResultFn == null) {
+    processResultFn = (res) => {
+      return {result: res}
+    }
+  }
   try {
-    data = await executeCypher(db, query, queryParms)
+    data = processResultFn(await executeCypher(db, query, queryParms))
   } finally {
     await dbClose(db)
   }
   dbLogFn?.('main', db)
   if (!dbParms.quiet) {
-    dbConsoleLogStdout(JSON.stringify({ result: data }))
+    dbConsoleLogStdout(JSON.stringify(data))
   }
   return data
 }

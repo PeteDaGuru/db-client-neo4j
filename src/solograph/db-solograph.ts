@@ -1,12 +1,13 @@
 import { DbContextType, executeCypher, main, PredefinedDbFunctions, replaceHelpCommandNameWith } from '../db-client'
-import { Graph } from './graph'
 
 /** Functions to handle Solo graphs from https://github.com/WardCunningham/graph
  *  With correct packages.json run script entry, can invoke via:
  *   npm run db-solograph -- --help
  *   node -r ts-node/register/transpile-only src/solograph/db-solograph.ts
  *
- *  Note: Solo collaborator wants {name: "foo", graph: {nodes:[], rels:[]}} and wants a name property in props of nodes
+ *  Note: Current code takes any Cypher result and tries to parse out all Neo4j nodes/edges
+ * 
+ *  Solo collaborator wants {name: "foo", graph: {nodes:[], rels:[]}} and wants a name property in props of nodes
  *  solo collaborator also handles things as .jsonl so JSON must be in one line (not prett-printed).  jq -c option
  *  http://ward.dojo.fed.wiki/view/welcome-visitors/view/solo-graph
 */
@@ -72,6 +73,23 @@ export function isNeo4jPath(e) {
   return Array.isArray(e.segments) && isNeo4jNode(e.start)
 }
 
+/** Answer true if the given result already been conerted to a SoloGraph */
+function hasSoloGraph(e) {
+  if (isObject(e)) {
+    if (e.solo != null) {
+      return true
+    }
+    if (e.type != null && isObject(e.props)) {
+      return true
+    }
+    if (Array.isArray(e) && e.length > 0) {
+      return hasSoloGraph(e[0])
+    }
+    return hasSoloGraph(e.result)
+  }
+  return false
+}
+
 /** Create a SoloGraph from the nodes and relationships from a Neo4j result. Uses first label of the node only.
  *  MATCH   g = ()-[]->() limit 100 return {nodes: apoc.coll.flatten(collect(distinct nodes(g))), edges: apoc.coll.flatten(collect(distinct relationships(g))) } as output
  */
@@ -110,19 +128,28 @@ export function createSoloGraphFromNeo4jNodesAndEdges(nodes: NodeResultNeo4j[], 
       gEdge.props = { ...gEdge.props, ...edge.properties }
     }
   }
-  return new Graph(gNodes, gEdges)
+  return { nodes: gNodes, edges: gEdges }
 }
 
-
-/** Execute the Cypher query and parse nodes/rels into a SoloGraph 
+export type CreateSoloGraphResponseType = { solo: { nodes: SoloGraphNode[], edges: SoloGraphEdge[] }, rest: any[] }
+/** Execute the Cypher query and parse nodes/rels into SoloGraph nodes and edges (and put anything else in the rest collection)
  * Can do it explicitly via:
  * MATCH g = ()-[]->() limit 100 return {nodes: apoc.coll.flatten(collect(distinct nodes(g))), edges: apoc.coll.flatten(collect(distinct relationships(g))) } as output
  * or we will take a graph returned and flatten into nodes and edges for a Graph
 */
-export async function createSoloGraphFromCypherQuery(db: DbContextType, cypherQuery: string, parms?): Promise<Graph> {
-  const results = await executeCypher(db, cypherQuery, parms)
+export async function createSoloGraphFromCypherQuery(db: DbContextType, cypherQuery: string, parms?): Promise<CreateSoloGraphResponseType> {
+  return createSoloGraphFromNeo4jResults(await executeCypher(db, cypherQuery, parms))
+}
+
+/** Parse Neo4j nodes/rels from the given Neo4j query results into SoloGraph nodes and edges (and put anything else in the rest collection)
+*/
+export function createSoloGraphFromNeo4jResults(results: any): CreateSoloGraphResponseType {
   const nodes: NodeResultNeo4j[] = []
   const edges: EdgeResultNeo4j[] = []
+  const rest: any[] = []
+  if (hasSoloGraph(results)) {
+    return results  // Already converted
+  }
   /** Answer true if the object has array of nodes and edges {nodes:[], edges:[]} */
   function isNodesAndEdges(e) {
     return (Array.isArray(e?.nodes) && Array.isArray(e?.edges))
@@ -135,7 +162,7 @@ export async function createSoloGraphFromCypherQuery(db: DbContextType, cypherQu
   /** Add all Neo4j nodes and edges from the given row - answer true if done
    *  Simple case is {nodes:[], edges:[]} object
    *  Otherwise traverse and check all objects
-   * Acceopts a result row object or array
+   * Accepts a result row object or array
    */
   function addAllNodesAndEdgesFrom(row) {
     if (!isObject(row)) {
@@ -148,7 +175,7 @@ export async function createSoloGraphFromCypherQuery(db: DbContextType, cypherQu
       foundSome = true
     }
     if (!foundSome) { // Perform deep traversal
-      for (const e of Object.values<any>(row)) {
+      for (const [name, e] of Object.entries<any>(row)) {
         if (isObject(e)) {
           if (isNodesAndEdges(e)) {
             addAllTo(nodes, e.nodes)
@@ -175,8 +202,11 @@ export async function createSoloGraphFromCypherQuery(db: DbContextType, cypherQu
                 edges.push(edge)
               }
             }
-
+          } else {
+            rest.push({[name]: e})  // Not a Neo4j node, edge, or path
           }
+        } else {
+          rest.push({[name]: e}) 
         }
       }
     }
@@ -185,7 +215,7 @@ export async function createSoloGraphFromCypherQuery(db: DbContextType, cypherQu
   for (const row of results) {
     addAllNodesAndEdgesFrom(row)
   }
-  return createSoloGraphFromNeo4jNodesAndEdges(nodes, edges)
+  return { solo: createSoloGraphFromNeo4jNodesAndEdges(nodes, edges), rest: rest }
 }
 
 
@@ -223,7 +253,9 @@ export function addMoreDbFunctions() {
 async function index(parms?) {
   addMoreDbFunctions()
   replaceHelpCommandNameWith('db-solo')
-  return await main(parms ?? process.argv.slice(2)) // get only user-provided arguments
+  return await main(parms ?? process.argv.slice(2), (data) => {
+    return { result: createSoloGraphFromNeo4jResults(data) }
+  }) // get only user-provided arguments
 }
 
 if (require.main === module) {
