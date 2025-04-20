@@ -5,7 +5,7 @@ import { open, writeFile } from 'node:fs/promises'
  *  With correct packages.json run script entry, can invoke via:
  *   npm run db-funcs -- --help
 */
-function addMoreDbFunctions() {
+export function addMoreDbFunctions() {
   const p = PredefinedDbFunctions
 
   /** Use to run the specified functions as a series of tests - used by npm run-script test:write */

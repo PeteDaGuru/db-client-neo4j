@@ -1,4 +1,5 @@
 import { DbContextType, executeCypher, main, PredefinedDbFunctions, replaceHelpCommandNameWith } from '../db-client'
+import { addMoreDbFunctions } from '../db-funcs'
 
 /** Functions to handle Solo graphs from https://github.com/WardCunningham/graph
  *  With correct packages.json run script entry, can invoke via:
@@ -231,7 +232,7 @@ export async function createSoloGraphFromCypherQuery(db: DbContextType, cypherQu
 }
 
 /** Extend db-client main CLI to test SoloGraph support */
-export function addMoreDbFunctions() {
+export function addSoloDbFunctions() {
   const p = PredefinedDbFunctions
 
   /** Test production of SoloGraph from structured result 
@@ -264,6 +265,7 @@ export function addMoreDbFunctions() {
 
 async function index(parms?) {
   addMoreDbFunctions()
+  addSoloDbFunctions()
   replaceHelpCommandNameWith('db-solo')
   return await main(parms ?? process.argv.slice(2),
     (data) => {
