@@ -4,24 +4,28 @@
   "description": "DB client for Neo4j written in Typescript and Javascript",
   "main": "dist/db-client.js",
   "scripts": {
-    "cypher": "node -r ts-node/register/transpile-only src/db-client.ts",
-    "db-funcs": "node -r ts-node/register/transpile-only src/db-funcs.ts",
-    "db-solo": "node -r ts-node/register/transpile-only src/solograph/db-solograph.ts",
+    "db-cypher": "node -r ts-node/register/transpile-only src/db-cli.ts",
+    "db-solo": "node -r ts-node/register/transpile-only src/solograph/db-solo-cli.ts",
     "build": "tsc",
     "build-web": "esbuild src/db-client.ts --bundle --outfile=dist/db-client-web.js --platform=node --format=iife",
-    "start": "node dist/db-client.js",
+    "start": "node dist/db-cli.js",
     "start-web": "http-server --cors -o db-client-neo4j-web.html",
+    "pretest:sniff": "$npm_execpath run build",
+    "test:sniff": "node dist/db-cli.js -- ok",
     "pretest": "$npm_execpath run build",
-    "test": "node dist/db-client.js -- ok",
+    "test": "node dist/db-cli.js -- runTestFuncs ok=1 echo=1 nodeCount=1 getValue=1 getAllValues=1 exportToCsv=1 testSoloGraph=1 testSoloGraph1=1 testSoloGraph2=1 testSoloGraph3=1",
     "pretest:write": "$npm_execpath run build",
-    "test:write": "node dist/db-funcs.js -- runTestFuncs ok=1 echo=1 nodeCount=1 initValueConstraint=1 setValue=1 getValue=1 getAllValues=1 sample1=1 testNestedParms=1 testImplictInTransactions=1"
+    "test:write": "node dist/db-cli.js -- runTestFuncs ok=1 echo=1 nodeCount=1 initValueConstraint=1 setValue=1 getValue=1 getAllValues=1 sample1=1 testNestedParms=1 testImplictInTransactions=1 testSoloGraph=1 testSoloGraph1=1 testSoloGraph2=1 testSoloGraph3=1"
   },
   "keywords": [
     "neo4j",
     "db",
     "typescript",
     "javascript",
-    "graph"
+    "graph",
+    "solo",
+    "solograph",
+    "fedwiki"
   ],
   "author": "Peter Dimitrios",
   "license": "MIT",

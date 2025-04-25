@@ -1,10 +1,9 @@
-import { DbContextType, executeCypher, main, PredefinedDbFunctions, replaceHelpCommandNameWith } from '../db-client'
-import { addMoreDbFunctions } from '../db-funcs'
+import { DbContextType, executeCypher } from '../db-client'
 
 /** Functions to handle Solo graphs from https://github.com/WardCunningham/graph
  *  With correct packages.json run script entry, can invoke via:
- *   npm run db-solograph -- --help
- *   node -r ts-node/register/transpile-only src/solograph/db-solograph.ts
+ *   npm run --quiet db-solo -- --help
+ *   node -r ts-node/register/transpile-only src/solograph/db-solo.ts
  *
  *  Note: Current code takes any Cypher result and tries to parse out all Neo4j nodes/edges
  * 
@@ -89,7 +88,7 @@ function hasSoloGraph(e) {
       return hasSoloGraph(e[0])
     }
     if (Array.isArray(e.nodes) && Array.isArray(e.edges)) {
-      return true
+      return hasSoloGraph(e.nodes) || hasSoloGraph(e.edges)
     }
     if (e.type != null && isObject(e.props)) {
       return true
@@ -229,51 +228,4 @@ export function createSoloGraphFromNeo4jResults(results: any): CreateSoloGraphRe
 */
 export async function createSoloGraphFromCypherQuery(db: DbContextType, cypherQuery: string, parms?): Promise<CreateSoloGraphResponseType> {
   return createSoloGraphFromNeo4jResults(await executeCypher(db, cypherQuery, parms))
-}
-
-/** Extend db-client main CLI to test SoloGraph support */
-export function addSoloDbFunctions() {
-  const p = PredefinedDbFunctions
-
-  /** Test production of SoloGraph from structured result 
-   *  MATCH g = ()-[]->() limit 100 return {nodes: apoc.coll.flatten(collect(distinct nodes(g))), edges: apoc.coll.flatten(collect(distinct relationships(g))) } as output
-   */
-  p.testSoloGraph = async function testSoloGraph(db, parms) {
-    const graph = await createSoloGraphFromCypherQuery(db, `MATCH g = ()-[]->() limit 5 return {nodes: apoc.coll.flatten(collect(distinct nodes(g))), edges: apoc.coll.flatten(collect(distinct relationships(g))) } as output`, parms)
-    return graph
-  }
-
-  /** Test production of empty SoloGraph from result that are not nodes and relationships  */
-  p.testSoloGraph1 = async function testSoloGraph1(db, parms) {
-    const graph = await createSoloGraphFromCypherQuery(db, `MATCH (n)-[]->(p) limit 5 return properties(n) as n, properties(p) as p`, parms)
-    return graph
-  }
-
-  /** Test production of SoloGraph objects from unstructured result 2 - Neo4j Path */
-  p.testSoloGraph2 = async function testSoloGraph2(db, parms) {
-    const graph = await createSoloGraphFromCypherQuery(db, `MATCH g = ()-[]->() limit 5 return g`, parms)
-    return graph
-  }
-
-  /** Test production of SoloGraph objects from unstructured result 3 - explicit returns */
-  p.testSoloGraph3 = async function testSoloGraph3(db, parms) {
-    const graph = await createSoloGraphFromCypherQuery(db, `MATCH (n)-[r]->(p) limit 5 return n,r,p`, parms)
-    return graph
-  }
-
-} // end addMoreDbFunctions
-
-async function index(parms?) {
-  addMoreDbFunctions()
-  addSoloDbFunctions()
-  replaceHelpCommandNameWith('db-solo')
-  return await main(parms ?? process.argv.slice(2),
-    (data) => {
-      return { result: createSoloGraphFromNeo4jResults(data) }
-    })
-}
-
-if (require.main === module) {
-  // Run via CLI not require() or import {}
-  index()
 }
